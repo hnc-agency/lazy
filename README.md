@@ -408,6 +408,17 @@ Shell got 3
 ok
 ```
 
+## Warnings
+
+Special care must be taken with `dropwhile` using a generator that produces an infinite
+sequence. If the predicate never fails, a call to `next` (which is implicit in most
+of the functions in `lazy`) will hang forever.
+
+```erlang
+1> Gen = lazy:dropwhile(fun (_) -> true end, lazy:repeat(x)).
+... hangs
+```
+
 ## Authors
 
 * Maria Scott (Maria-12648430)
