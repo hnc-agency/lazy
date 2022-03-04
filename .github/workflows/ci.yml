@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    container:
+      image: erlang:24.2
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Compile
+      run: make
+    - name: Proper tests
+      run: make proper
+    - name: Dialyzer
+      run: make dialyze
