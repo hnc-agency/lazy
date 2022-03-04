@@ -1,0 +1,10 @@
+{
+	application,
+	'lazy',
+	[
+		{description, "Lazy sequences"},
+		{vsn, "0.0.1"},
+		{modules, ['lazy']},
+		{applications, [kernel, stdlib]}
+	]
+}.
