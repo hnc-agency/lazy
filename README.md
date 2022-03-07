@@ -361,7 +361,7 @@ fib1(N1, N2) ->
     {N1 + N2, fun () -> fib1(N2, N1 + N2) end}.
 ```
 
-The follwoing example generator produces the Collatz sequence for a given number.
+The following example generator produces the Collatz sequence for a given number.
 
 ```erlang
 collatz(N) when is_integer(N), N > 0 ->
@@ -382,7 +382,7 @@ fact() ->
 	fun () -> fact1(1, 1) end.
 
 fact1(N, Fact) ->
-    {Fact, fun () -> fact1(N+1, N*Fact) end}.
+    {Fact, fun () -> fact1(N + 1, (N + 1) * Fact) end}.
 ```
 
 ## Materializing
