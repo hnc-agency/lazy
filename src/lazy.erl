@@ -29,11 +29,15 @@
 -export([foldl/3]).
 -export([foldr/3]).
 -export([from_list/1]).
+-export([iterate/2]).
 -export([length/1]).
 -export([map/2]).
 -export([next/1]).
 -export([once/1]).
 -export([repeat/1]).
+-export([repeatedly/1]).
+-export([reverse/1]).
+-export([scan/3]).
 -export([seq/2, seq/3]).
 -export([take/2]).
 -export([takewhile/2]).
@@ -130,6 +134,17 @@ once(Value) ->
 -spec repeat(V) -> generator(V) when V :: term().
 repeat(Value) ->
 	fun G() -> {Value, G} end.
+
+-spec repeatedly(fun(() -> V)) -> generator(V) when V :: term().
+repeatedly(Fun) when is_function(Fun, 0) ->
+	fun G() -> {Fun(), G} end.
+
+-spec iterate(fun((V0 | V1) -> V1), V0) -> generator(V1) when V0 :: term(), V1 :: term().
+iterate(Fun, Init) when is_function(Fun, 1) ->
+	fun () -> iterate1(Fun, Init) end.
+
+iterate1(F, V) ->
+	{V, fun () -> iterate1(F, F(V)) end}.
 
 -spec cycle(generator(V)) -> generator(V) when V :: term().
 cycle(Generator) when ?is_generator(Generator) ->
@@ -253,6 +268,16 @@ foldr1(_, Acc, empty) ->
 foldr1(F, Acc, {V, G1}) ->
 	F(V, foldr1(F, Acc, next(G1))).
 
+-spec scan(fun((V1, term()) -> V2), term(), generator(V1)) -> generator(V2) when V1 :: term(), V2 :: term().
+scan(Fun, Acc0, Generator) when is_function(Fun, 2), ?is_generator(Generator) ->
+	fun () -> scan1(Fun, Acc0, next(Generator)) end.
+
+scan1(_, _, empty) ->
+	empty;
+scan1(F, AccIn, {V, G1}) ->
+	AccOut=F(V, AccIn),
+	{AccOut, fun () -> scan1(F, AccOut, next(G1)) end}.
+
 -spec append(generator(V1), generator(V2)) -> generator(V1 | V2) when V1 :: term(), V2 :: term().
 append(Generator1, Generator2) ->
 	append([Generator1, Generator2]).
@@ -303,20 +328,38 @@ zipwith1(_, _, empty) ->
 zipwith1(F, {V1, G1}, {V2, G2}) ->
 	{F(V1, V2), fun () -> zipwith1(F, next(G1), next(G2)) end}.
 
+-spec reverse(generator(V)) -> generator(V) when V :: term().
+reverse(Generator) when ?is_generator(Generator) ->
+	from_list(reverse1(next(Generator), [])).
+
+reverse1(empty, Acc) ->
+	Acc;
+reverse1({V, G1}, Acc) ->
+	reverse1(next(G1), [V|Acc]).
+
 -spec seq(integer(), integer()) -> generator(integer()).
 seq(N1, N2) ->
 	seq(N1, N2, 1).
 
 -spec seq(integer(), integer() | 'infinity', integer()) -> generator(integer()).
-seq(N, infinity, Step) when is_integer(N), is_integer(Step) ->
-	fun () -> seq1_inf(N, Step) end;
-seq(N1, N2, Step) when is_integer(N1), is_integer(N2), is_integer(Step), Step>=0 ->
-	fun () -> seq1_up(N1, N2, Step) end;
-seq(N1, N2, Step) when is_integer(N1), is_integer(N2), is_integer(Step), Step<0 ->
-	fun () -> seq1_down(N1, N2, Step) end.
+seq(N1, infinity, 0) when is_integer(N1) ->
+	repeat(N1);
+seq(N1, N2, 0) when is_integer(N1), is_integer(N2), N1=<N2 ->
+	repeat(N1);
+seq(N1, infinity, Step) when is_integer(N1), is_integer(Step) ->
+	fun () -> seq1_inf(N1, Step) end;
+seq(N1, N2, Step) when is_integer(N1), is_integer(N2), is_integer(Step) ->
+	if
+		Step>0, N1=<N2 ->
+			fun () -> seq1_up(N1, N2, Step) end;
+		Step<0, N1>=N2 ->
+			fun () -> seq1_down(N1, N2, Step) end;
+		true ->
+			empty()
+	end.	
 
-seq1_inf(N, S) ->
-	{N, fun () -> seq1_inf(N+S, S) end}.
+seq1_inf(N1, S) ->
+	{N1, fun () -> seq1_inf(N1+S, S) end}.
 
 seq1_up(N1, N2, S) when N1=<N2 ->
 	{N1, fun () -> seq1_up(N1+S, N2, S) end};

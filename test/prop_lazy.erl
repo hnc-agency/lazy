@@ -335,3 +335,36 @@ prop_length() ->
 			Out=:=Exp
 		end
 	).
+
+prop_scan() ->
+	?FORALL(
+		L,
+		list(integer()),
+		begin
+			Out=lazy:to_list(lazy:scan(fun (V, Acc) -> V+Acc end, 0, lazy:from_list(L))),
+			Exp=lists:foldl(fun (V, []) -> [V]; (V, Acc=[V0|_]) -> [V+V0|Acc] end, [], L),
+			Out=:=lists:reverse(Exp)
+		end
+	).
+
+prop_reverse() ->
+	?FORALL(
+		L,
+		list(),
+		begin
+			Out=lazy:to_list(lazy:reverse(lazy:from_list(L))),
+			Exp=lists:reverse(L),
+			Out=:=Exp
+		end
+	).
+
+prop_iterate() ->
+	?FORALL(
+	   	{N, T},
+		{non_neg_integer(), non_neg_integer()},
+		begin
+			Out=lazy:to_list(lazy:take(T, lazy:iterate(fun (V) -> 2 * V end, N))),
+			Exp=lists:foldl(fun (_, []) -> [N]; (_, Acc=[V0|_]) -> [2*V0|Acc] end, [], lists:seq(1, T)),
+			Out=:=lists:reverse(Exp)
+		end
+	).

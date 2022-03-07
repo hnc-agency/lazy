@@ -79,6 +79,25 @@ that infinitely produces this term.
 ...
 ```
 
+#### `repeatedly`
+
+`repeatedly` takes a function as argument and returns a generator that
+produces values by calling the given function.
+
+`repeatedly` is useful only if the given function relies on side effects.
+
+```erlang
+1> Gen0 = lazy:repeatedly(fun () -> erlang:monotonic_time(millisecond) end).
+#Fun<lazy.6.119312783>
+2> {_, Gen1} = lazy:next(Gen0).
+{-576460706404, #Fun<lazy.39.119312783>}
+3> {_, Gen2} = lazy:next(Gen1).
+{-576460699780, #Fun<lazy.39.119312783>}
+4> {_, Gen3} = lazy:next(Gen2).            
+{-576460687155, #Fun<lazy.39.119312783>}
+...
+```
+
 #### `seq`
 
 `seq`, like `lists:seq`, takes start and end values and an optional
@@ -126,6 +145,26 @@ If the given generator produces an empty sequence, the produced sequence ends.
 ...
 ```
 
+#### `iterate`
+
+`iterate` takes a function and an arbitrary term as initial value and returns a
+generator that produces values by applying the given function on its own return
+value.
+
+```erlang
+1> Gen0 = lazy:iterate(fun (V) -> 3 * V end, 1).
+#Fun<lazy.7.9483195>
+2> {_, Gen1} = lazy:next(Gen0).
+{1, #Fun<lazy.8.9483195>}
+3> {_, Gen2} = lazy:next(Gen1).
+{3, #Fun<lazy.8.9483195>}
+4> {_, Gen3} = lazy:next(Gen2).
+{9, #Fun<lazy.8.9483195>}
+5> {_, Gen4} = lazy:next(Gen3).
+{27, #Fun<lazy.8.9483195>}
+...
+```
+
 #### `append`
 
 `append` takes either two generators or a list of generators as arguments and returns
@@ -145,6 +184,20 @@ given generators produce.
 {b, #Fun<lazy.23.117373710>}
 6> lazy:next(Gen4).
 empty
+```
+
+#### `reverse`
+
+`reverse` takes a generator as argument and returns a generator that produces the
+same values as the given generator in reverse order.
+
+In order to do this, `reverse` needs to materialize the entire sequence the given
+generator produces, which poses a risk of memory exhaustion. If the given generator
+produces an infinite sequence, memory exhaustion is sure to happen.
+
+```erlang
+1> lazy:to_list(lazy:reverse(lazy:seq(1, 10))).
+[10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
 ```
 
 #### `filter`
@@ -345,6 +398,26 @@ empty
 ok
 ```
 
+#### `scan`
+
+`scan` takes a function, an initial accumulator, and a generator as arguments and
+returns a generator that with each step folds the given function over the values
+produced by the given generator, like a `foldl` in which the returned generator
+produces the intermediate steps.
+
+```erlang
+1> Gen0 = lazy:scan(fun (V, Acc) -> [V|Acc] end, [], lazy:seq(1, 3)).
+#Fun<lazy.22.119312783>
+2> {_, Gen1} = lazy:next(Gen0).
+{[1], #Fun<lazy.23.119312783>}
+3> {_, Gen2} = lazy:next(Gen1).
+{[2,1], #Fun<lazy.23.119312783>}
+4> {_, Gen3} = lazy:next(Gen2).
+{[3,2,1], #Fun<lazy.23.119312783>}
+5> lazy:next(Gen3).            
+empty
+```
+
 ### Custom generators
 
 To create a custom generator, you must devise a function of arity `0` which, when called,
@@ -397,7 +470,7 @@ infinite sequences.
 
 ```erlang
 1> lazy:to_list(lazy:seq(1, 10)).
-[1,2,3,4,5,6,7,8,9,10]
+[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 ```
 
 ### `foldl` and `foldr`
@@ -411,10 +484,10 @@ produces.
 
 ```erlang
 1> lazy:foldl(fun (V, Acc) -> [V | Acc] end, [], lazy:seq(1, 10)).    
-[10,9,8,7,6,5,4,3,2,1]
+[10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
 
 2> lazy:foldr(fun (V, Acc) -> [V | Acc] end, [], lazy:seq(1, 10)).
-[1,2,3,4,5,6,7,8,9,10]
+[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 ```
 
 `foldl` and `foldr` can also be used to create a new generator that can in turn
@@ -422,10 +495,10 @@ be used with other `lazy` functions.
 
 ```erlang
 1> lazy:to_list(lazy:foldl(fun (V, Acc) -> fun () -> {V, Acc} end end, lazy:empty(), lazy:seq(1, 10))).
-[10,9,8,7,6,5,4,3,2,1]
+[10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
 
 2> lazy:to_list(lazy:foldr(fun (V, Acc) -> fun () -> {V, Acc} end end, lazy:empty(), lazy:seq(1, 10))).
-[1,2,3,4,5,6,7,8,9,10]
+[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 ```
 
 ### `flush`
