@@ -410,12 +410,25 @@ ok
 
 ## Warnings
 
-Special care must be taken with `dropwhile` using a generator that produces an infinite
-sequence. If the predicate never fails, a call to `next` (which is implicit in most
-of the functions in `lazy`) will hang forever.
+Special care must be taken with generators that do a fast-forward with a predicate
+(like `filter`, `filtermap` or `dropwhile`) when used on an infinite sequence.
+
+With `filter` and `filtermap`, if the predicate never succeeds, a call to `next`
+(implicit or explicit) will hang forever.
 
 ```erlang
-1> Gen = lazy:dropwhile(fun (_) -> true end, lazy:repeat(x)).
+1> Gen = `lazy:filter(fun (V) -> is_atom(V) end, lazy:seq(1, infinity)).
+#Fun<lazy.16.33120069>
+2> lazy:next(Gen).
+... hangs
+```
+
+The same is true for `dropwhile` if the predicate never fails.
+
+```erlang
+1> Gen = lazy:dropwhile(fun (V) -> is_integer(V) end, lazy:seq(1, infinity)).
+#Fun<lazy.13.33120069>
+2> lazy:next(Gen).
 ... hangs
 ```
 
