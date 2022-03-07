@@ -8,14 +8,13 @@ A generator is a function producing the values making up a sequence,
 one at a time.
 Generators may produce bounded or unbounded (infinite) sequences.
 
-As a rule of thumb, generators should be pure functions. It
-is not guaranteed if and when they are being called, and they
-may even be called multiple times, depending on use case.
+As a rule of thumb, generators should be pure functions. There are no
+guarantees regarding to when and how often they will be called.
 
 The next value of a generator can be generated with a call to
 `next/1`, which will either return the atom `empty` indicating
-that the sequence is exhausted, or the current value and a generator
-to access the next value in a tuple.
+that the sequence is exhausted, or the current value and a new
+generator to access the next value in a tuple.
 
 ### Built-in generators
 
@@ -37,6 +36,31 @@ that produces the values from the list, in order.
 4> {_, Gen3} = lazy:next(Gen2).
 {c, #Fun<lazy.2.117373710>}
 5> lazy:next(Gen3).
+empty
+```
+
+#### `empty`
+
+`empty` returns a generator that produces an empty sequence.
+
+```erlang
+1> Gen = lazy:empty().
+#Fun<lazy.3.117373710>
+2> lazy:next(Gen)
+empty
+```
+
+#### `once`
+
+`once` takes an arbitary term as argument and returns a generator that
+produces this term exactly once.
+
+```erlang
+1> Gen0 = lazy:once(x).
+#Fun<lazy.3.117373710>
+2> {_, Gen1} = lazy:next(Gen0).
+{x, #Fun<lazy.37.117373710>}
+3> lazy:next(Gen1).
 empty
 ```
 
@@ -344,7 +368,7 @@ collatz(N) when is_integer(N), N > 0 ->
     fun () -> collatz1(N) end.
 
 collatz1(1) ->
-    {1, fun () -> empty end};
+    lazy:once(1);
 collatz1(N) when N rem 2 =:= 0 ->
     {N, fun () -> collatz1(N div 2) end};
 collatz1(N) ->
@@ -393,6 +417,17 @@ produces.
 [1,2,3,4,5,6,7,8,9,10]
 ```
 
+`foldl` and `foldr` can also be used to create a new generator that can in turn
+be used with other `lazy` functions.
+
+```erlang
+1> lazy:to_list(lazy:foldl(fun (V, Acc) -> fun () -> {V, Acc} end end, lazy:empty(), lazy:seq(1, 10))).
+[10,9,8,7,6,5,4,3,2,1]
+
+2> lazy:to_list(lazy:foldr(fun (V, Acc) -> fun () -> {V, Acc} end end, lazy:empty(), lazy:seq(1, 10))).
+[1,2,3,4,5,6,7,8,9,10]
+```
+
 ### `flush`
 
 `flush` takes a generator as argument and returns the atom `ok` after exhausting
@@ -406,6 +441,34 @@ Shell got 1
 Shell got 2
 Shell got 3
 ok
+```
+
+### `all` and `any`
+
+`all` and `any` take a predicate function and a generator as arguments and return
+`true` if all or any of the values produced by the given generator satisfy the
+given predicate, otherwise `false`.
+
+```erlang
+1> lazy:all(fun (V) -> is_integer(V) end, lazy:seq(1, 10)).
+true
+2> lazy:all(fun (V) -> is_integer(V) andalso V < 5 end, lazy:seq(1, 10)).
+false
+
+3> lazy:any(fun (V) -> is_atom(V) end, lazy:seq(1, 10)).
+false
+4> lazy:any(fun (V) -> is_integer(V) andalso V > 5 end, lazy:seq(1, 10)).
+true
+```
+
+### `length`
+
+`length` takes a generator as argument and returns the number of values in the
+sequence the given generator produces.
+
+```erlang
+1> lazy:length(lazy:seq(1, 10)).
+10
 ```
 
 ## Warnings

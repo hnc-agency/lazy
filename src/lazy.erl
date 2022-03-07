@@ -15,19 +15,24 @@
 
 -module(lazy).
 
+-export([all/2]).
+-export([any/2]).
 -export([append/1, append/2]).
 -export([apply/2]).
 -export([cycle/1]).
 -export([drop/2]).
 -export([dropwhile/2]).
+-export([empty/0]).
 -export([filter/2]).
 -export([filtermap/2]).
 -export([flush/1]).
 -export([foldl/3]).
 -export([foldr/3]).
 -export([from_list/1]).
+-export([length/1]).
 -export([map/2]).
 -export([next/1]).
+-export([once/1]).
 -export([repeat/1]).
 -export([seq/2, seq/3]).
 -export([take/2]).
@@ -77,6 +82,51 @@ flush1(empty) ->
 flush1({_, G1}) ->
 	flush1(next(G1)).
 
+-spec all(fun((V) -> boolean()), generator(V)) -> boolean() when V :: term().
+all(Fun, Generator) when is_function(Fun, 1), ?is_generator(Generator) ->
+	all1(Fun, next(Generator)).
+
+all1(_, empty) ->
+	true;
+all1(F, {V, G1}) ->
+	case F(V) of
+		true ->
+			all1(F, next(G1));
+		false ->
+			false
+	end.
+
+-spec any(fun((V) -> boolean()), generator(V)) -> boolean() when V :: term().
+any(Fun, Generator) when is_function(Fun, 1), ?is_generator(Generator) ->
+	any1(Fun, next(Generator)).
+
+any1(_, empty) ->
+	false;
+any1(F, {V, G1}) ->
+	case F(V) of
+		true ->
+			true;
+		false ->
+			any1(F, next(G1))
+	end.
+
+-spec length(generator(term())) -> non_neg_integer().
+length(Generator) when ?is_generator(Generator) ->
+	length1(next(Generator), 0).
+
+length1(empty, N) ->
+	N;
+length1({_, G1}, N) ->
+	length1(next(G1), N+1).
+
+-spec empty() -> fun(() -> 'empty').
+empty() ->
+	fun () -> empty end.
+
+-spec once(V) -> generator(V) when V :: term().
+once(Value) ->
+	fun () -> {Value, fun () -> empty end} end.
+
 -spec repeat(V) -> generator(V) when V :: term().
 repeat(Value) ->
 	fun G() -> {Value, G} end.
@@ -94,14 +144,14 @@ cycle1(_, {V, G1}, G) ->
 
 -spec take(non_neg_integer(), generator(V)) -> generator(V) when V :: term().
 take(0, Generator) when ?is_generator(Generator) ->
-	fun () -> empty end;
+	empty();
 take(N, Generator) when is_integer(N), N>=0, ?is_generator(Generator) ->
 	fun () -> take1(N, next(Generator)) end.
 
 take1(_, empty) ->
 	empty;
 take1(1, {V, _}) ->
-	{V, fun () -> empty end};
+	{V, empty()};
 take1(N, {V, G1}) ->
 	{V, fun () -> take1(N-1, next(G1)) end}.
 
@@ -260,8 +310,6 @@ seq(N1, N2) ->
 -spec seq(integer(), integer() | 'infinity', integer()) -> generator(integer()).
 seq(N, infinity, Step) when is_integer(N), is_integer(Step) ->
 	fun () -> seq1_inf(N, Step) end;
-seq(N, _, 0) when is_integer(N) ->
-	fun () -> seq1_inf(N, 0) end;
 seq(N1, N2, Step) when is_integer(N1), is_integer(N2), is_integer(Step), Step>=0 ->
 	fun () -> seq1_up(N1, N2, Step) end;
 seq(N1, N2, Step) when is_integer(N1), is_integer(N2), is_integer(Step), Step<0 ->

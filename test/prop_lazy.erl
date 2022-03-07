@@ -116,6 +116,15 @@ prop_infinite_seq() ->
 		end
 	).
 
+prop_once() ->
+	?FORALL(
+		V,
+		term(),
+		begin
+			[V]=:=lazy:to_list(lazy:once(V))
+		end
+	).
+
 prop_repeat() ->
 	?FORALL(
 		{V, T},
@@ -214,6 +223,16 @@ prop_append() ->
 		end
 	).
 
+prop_empty() ->
+	?FORALL(
+		L,
+		list(),
+		begin
+			Out=lazy:to_list(lazy:append([lazy:from_list(L), lazy:empty()])),
+			L=:=Out
+		end
+	).
+
 prop_apply() ->
 	?FORALL(
 		L,
@@ -231,6 +250,25 @@ prop_apply() ->
 				L
 			),
 			Out=:=L andalso RecvdAll
+		end
+	).
+
+prop_flush() ->
+	?FORALL(
+		L,
+		list(),
+		begin
+			Tag=make_ref(),
+			ok=lazy:flush(lazy:apply(fun (V) -> self() ! {Tag, V} end, lazy:from_list(L))),
+			lists:all(
+				fun (V) ->
+					receive
+						{Tag, V1} -> V=:=V1
+					after 1000 -> error(timeout)
+					end
+				end,
+				L
+			)
 		end
 	).
 
@@ -259,6 +297,41 @@ prop_zipwith() ->
 			ExpL1=lists:sublist(L1, MinLen),
 			ExpL2=lists:sublist(L2, MinLen),
 			Exp=lists:zipwith(ZipFun, ExpL1, ExpL2),
+			Out=:=Exp
+		end
+	).
+
+prop_all() ->
+	?FORALL(
+		L,
+		list(integer()),
+		begin
+			Pred=fun (V) -> is_integer(V) end,
+			Out1=lazy:all(Pred, lazy:from_list(L)),
+			Out2=lazy:all(Pred, lazy:from_list(L++[foo])),
+			Out1=:=true andalso Out2=:=false
+		end
+	).
+
+prop_any() ->
+	?FORALL(
+		L,
+		list(integer()),
+		begin
+			Pred=fun (V) -> is_atom(V) end,
+			Out1=lazy:any(Pred, lazy:from_list(L)),
+			Out2=lazy:any(Pred, lazy:from_list(L++[foo])),
+			Out1=:=false andalso Out2=:=true
+		end
+	).
+
+prop_length() ->
+	?FORALL(
+		L,
+		list(),
+		begin
+			Out=lazy:length(lazy:from_list(L)),
+			Exp=length(L),
 			Out=:=Exp
 		end
 	).
