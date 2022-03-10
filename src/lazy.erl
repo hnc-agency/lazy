@@ -42,8 +42,10 @@
 -export([take/2]).
 -export([takewhile/2]).
 -export([to_list/1]).
+-export([unfold/2]).
+-export([unzip/1]).
 -export([zip/2]).
--export([zipwith/3]).
+-export([zipwith/2, zipwith/3]).
 
 -type generator() :: generator(term()).
 -export_type([generator/0]).
@@ -156,6 +158,15 @@ cycle1(false, empty, G) ->
 	cycle1(true, next(G), G);
 cycle1(_, {V, G1}, G) ->
 	{V, fun () -> cycle1(false, next(G1), G) end}.
+
+-spec unfold(fun((Acc0 | Acc1) -> empty | {V, Acc1}), Acc0) -> generator(V) when V :: term(), Acc0 :: term(), Acc1 :: term().
+unfold(Fun, Acc0) when is_function(Fun, 1) ->
+	fun () -> unfold1(Fun, Fun(Acc0)) end.
+
+unfold1(_, empty) ->
+	empty;
+unfold1(F, {V, Acc1}) ->
+	{V, fun () -> unfold1(F, F(Acc1)) end}.
 
 -spec take(non_neg_integer(), generator(V)) -> generator(V) when V :: term().
 take(0, Generator) when ?is_generator(Generator) ->
@@ -283,7 +294,11 @@ append(Generator1, Generator2) ->
 	append([Generator1, Generator2]).
 
 -spec append([generator(V)]) -> generator(V) when V :: term().
-append(Generators) ->
+append([]) ->
+	empty();
+append([Generator]) when ?is_generator(Generator) ->
+	Generator;
+append(Generators) when is_list(Generators) ->
 	true=lists:all(fun (G) -> ?is_generator(G) end, Generators),
 	fun () -> append1(Generators) end.
 
@@ -317,16 +332,38 @@ zip1(_, empty) ->
 zip1({V1, G1}, {V2, G2}) ->
 	{{V1, V2}, fun () -> zip1(next(G1), next(G2)) end}.
 
--spec zipwith(fun((V1, V2) -> V3), generator(V1), generator(V2)) -> generator(V3) when V1 :: term(), V2 :: term(), V3 :: term().
-zipwith(Fun, Generator1, Generator2) when is_function(Fun, 2), ?is_generator(Generator1), ?is_generator(Generator2) ->
-	fun () -> zipwith1(Fun, next(Generator1), next(Generator2)) end.
+-spec unzip(generator({V1, V2})) -> {generator(V1), generator(V2)} when V1 :: term(), V2 :: term().
+unzip(Generator) when ?is_generator(Generator) ->
+	{fun () -> unzip1(left, next(Generator)) end, fun () -> unzip1(right, next(Generator)) end}.
 
-zipwith1(_, empty, _) ->
+unzip1(_, empty) ->
 	empty;
-zipwith1(_, _, empty) ->
-	empty;
-zipwith1(F, {V1, G1}, {V2, G2}) ->
-	{F(V1, V2), fun () -> zipwith1(F, next(G1), next(G2)) end}.
+unzip1(left, {{V1, _}, G1}) ->
+	{V1, fun () -> unzip1(left, next(G1)) end};
+unzip1(right, {{_, V2}, G1}) ->
+	{V2, fun () -> unzip1(right, next(G1)) end}.
+
+-spec zipwith(fun((V1, V2) -> V3), generator(V1), generator(V2)) -> generator(V3) when V1 :: term(), V2 :: term(), V3 :: term().
+zipwith(Fun, Generator1, Generator2) ->
+	zipwith(Fun, [Generator1, Generator2]).
+
+-spec zipwith(fun((...) -> V1), [generator(V0)]) -> generator(V1) when V0 :: term(), V1 :: term().
+zipwith(_, []) ->
+	empty();
+zipwith(Fun, Generators) when is_list(Generators), is_function(Fun, erlang:length(Generators)) ->
+	true=lists:all(fun (G) -> ?is_generator(G) end, Generators),
+	fun () -> zipwith1(Fun, Generators, []) end.
+
+zipwith1(F, [], Acc) ->
+	{Vs, G1s} = lists:unzip(lists:reverse(Acc)),
+	{erlang:apply(F, Vs), fun () -> zipwith1(F, G1s, []) end};
+zipwith1(F, [G|Gs], Acc) ->
+	case next(G) of
+		empty ->
+			empty;
+		Res ->
+			zipwith1(F, Gs, [Res|Acc])
+	end.
 
 -spec reverse(generator(V)) -> generator(V) when V :: term().
 reverse(Generator) when ?is_generator(Generator) ->

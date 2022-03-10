@@ -212,7 +212,18 @@ prop_fold() ->
 		end
 	).
 
-prop_append() ->
+prop_append1() ->
+	?FORALL(
+	   	{L1, L2},
+		{list(), list()},
+		begin
+			Out=lazy:to_list(lazy:append(lazy:from_list(L1), lazy:from_list(L2))),
+			Exp=lists:append(L1, L2),
+			Out=:=Exp
+		end
+	).
+
+prop_append2() ->
 	?FORALL(
 		Ls,
 		list(list()),
@@ -286,7 +297,23 @@ prop_zip() ->
 		end
 	).
 
-prop_zipwith() ->
+prop_zipwith2() ->
+	?FORALL(
+		{L1, L2, L3},
+		{list(integer()), list(integer()), list(integer())},
+		begin
+			ZipFun=fun (V1, V2, V3) -> V1+V2+V3 end,
+			Out=lazy:to_list(lazy:zipwith(ZipFun, [lazy:from_list(L1), lazy:from_list(L2), lazy:from_list(L3)])),
+			MinLen=min(min(length(L1), length(L2)), length(L3)),
+			ExpL1=lists:sublist(L1, MinLen),
+			ExpL2=lists:sublist(L2, MinLen),
+			ExpL3=lists:sublist(L3, MinLen),
+			Exp=lists:zipwith3(ZipFun, ExpL1, ExpL2, ExpL3),
+			Out=:=Exp
+		end
+	).
+
+prop_zipwith3() ->
 	?FORALL(
 		{L1, L2},
 		{list(), list()},
@@ -366,5 +393,29 @@ prop_iterate() ->
 			Out=lazy:to_list(lazy:take(T, lazy:iterate(fun (V) -> 2 * V end, N))),
 			Exp=lists:foldl(fun (_, []) -> [N]; (_, Acc=[V0|_]) -> [2*V0|Acc] end, [], lists:seq(1, T)),
 			Out=:=lists:reverse(Exp)
+		end
+	).
+
+prop_unzip() ->
+	?FORALL(
+		L,
+		list({term(), term()}),
+		begin
+			{G1, G2}=lazy:unzip(lazy:from_list(L)),
+			Out1=lazy:to_list(G1),
+			Out2=lazy:to_list(G2),
+			{Exp1, Exp2}=lists:unzip(L),
+			Out1=:=Exp1 andalso Out2=:=Exp2
+		end
+	).
+
+prop_unfold() ->
+	?FORALL(
+		Acc0,
+		non_neg_integer(),
+		begin
+			Out=lazy:to_list(lazy:unfold(fun (0) -> empty; (Acc) -> {Acc, Acc-1} end, Acc0)),
+			Exp=lists:seq(Acc0, 1, -1),
+			Out=:=Exp
 		end
 	).

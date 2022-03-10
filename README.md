@@ -93,7 +93,7 @@ produces values by calling the given function.
 {-576460706404, #Fun<lazy.39.119312783>}
 3> {_, Gen2} = lazy:next(Gen1).
 {-576460699780, #Fun<lazy.39.119312783>}
-4> {_, Gen3} = lazy:next(Gen2).            
+4> {_, Gen3} = lazy:next(Gen2).
 {-576460687155, #Fun<lazy.39.119312783>}
 ...
 ```
@@ -167,12 +167,13 @@ value.
 
 #### `append`
 
-`append` takes either two generators or a list of generators as arguments and returns
-a generator that produces a sequence that is the concatenation of the sequences the
-given generators produce.
+`append` takes a list of generators as argument and returns a generator that produces
+a sequence that is the concatenation of the sequences the given generators produce.
+
+A shorthand version of `append` exists that takes two generators as arguments.
 
 ```erlang
-1> Gen0 = lazy:append(lazy:seq(1, 2), lazy:from_list([a, b])).
+1> Gen0 = lazy:append([lazy:seq(1, 2), lazy:from_list([a, b])]).
 #Fun<lazy.22.117373710>
 2> {_, Gen1} = lazy:next(Gen0).
 {1, #Fun<lazy.23.117373710>}
@@ -336,33 +337,60 @@ sequence ends if one or both generators are exhausted.
 ```erlang
 1> Gen0 = lazy:zip(lazy:seq(1, infinity), lazy:from_list([a, b, c])).
 #Fun<lazy.26.117373710>
-2> {_, Gen1} = lazy:next(Gen0).                                      
+2> {_, Gen1} = lazy:next(Gen0).
 {{1, a}, #Fun<lazy.27.117373710>}
-3> {_, Gen2} = lazy:next(Gen1).                                      
+3> {_, Gen2} = lazy:next(Gen1).
 {{2, b}, #Fun<lazy.27.117373710>}
-4> {_, Gen3} = lazy:next(Gen2).                                      
+4> {_, Gen3} = lazy:next(Gen2).
 {{3, c}, #Fun<lazy.27.117373710>}
-5> lazy:next(Gen3).                                                  
+5> lazy:next(Gen3).
+empty
+```
+
+#### `unzip`
+
+`unzip` takes a generator which produces 2-tuples as argument and returns a tuple of
+two generators that respectively produce the first and second values from the tuples
+the given generator produces.
+
+```erlang
+1> {GenL0, GenR0}=lazy:unzip(lazy:from_list([{a, 1}, {b, 2}])).
+{#Fun<lazy.35.73700886>, #Fun<lazy.36.73700886>}
+2> {_, GenL1} = lazy:next(GenL0).
+{a, #Fun<lazy.38.73700886>}
+3> {_, GenL2} = lazy:next(GenL1).
+{b, #Fun<lazy.38.73700886>}
+4> lazy:next(GenL2).
+empty
+5> {_, GenR1} = lazy:next(GenR0).
+{1, #Fun<lazy.37.73700886>}
+6> {_, GenR2} = lazy:next(GenR1).
+{2, #Fun<lazy.37.73700886>}
+7> lazy:next(GenR2).
 empty
 ```
 
 #### `zipwith`
 
-`zipwith` takes a transformation function and two generators as arguments and returns a
-generator that produces a sequence of values which is the result of the giving the values
-of both generators to the given function. The produced sequence ends if one or both
-generators are exhausted.
+`zipwith` takes a transformation function and a list of generators as arguments and returns a
+generator that produces a sequence of values which is the result of the giving the current values
+of all generators to the given function. The arity of the given transformation function must be
+equal to the length of the given list of generators. The produced sequence ends if any of the given
+generators is exhausted.
+
+A shorthand version of `zipwith` exists that takes a function of arity 2 and two generators as
+arguments.
 
 ```erlang
-1> Gen0 = lazy:zipwith(fun (V1, V2) -> {V2, -V1} end, lazy:seq(1, infinity), lazy:from_list([a, b, c])).
+1> Gen0 = lazy:zipwith(fun (V1, V2) -> {V2, -V1} end, [lazy:seq(1, infinity), lazy:from_list([a, b, c])]).
 #Fun<lazy.28.117373710>
-2> {_, Gen1} = lazy:next(Gen0).                                                                         
+2> {_, Gen1} = lazy:next(Gen0).
 {{a, -1}, #Fun<lazy.29.117373710>}
-3> {_, Gen2} = lazy:next(Gen1).                                                                         
+3> {_, Gen2} = lazy:next(Gen1).
 {{b, -2}, #Fun<lazy.29.117373710>}
-4> {_, Gen3} = lazy:next(Gen2).                                                                         
+4> {_, Gen3} = lazy:next(Gen2).
 {{c, -3}, #Fun<lazy.29.117373710>}
-5> lazy:next(Gen3).                                                                                     
+5> lazy:next(Gen3).
 empty
 ```
 
@@ -377,24 +405,24 @@ This is a special generator which is useful only for the side effects of the giv
 ```erlang
 1> Gen0 = lazy:apply(fun (V) -> self() ! V end, lazy:seq(1, 3)).
 #Fun<lazy.24.117373710>
-2> {_, Gen1} = lazy:next(Gen0).                                 
+2> {_, Gen1} = lazy:next(Gen0).
 {1, #Fun<lazy.25.117373710>}
 3> flush().
 Shell got 1
 ok
-4> {_, Gen2} = lazy:next(Gen1).                                 
+4> {_, Gen2} = lazy:next(Gen1).
 {2, #Fun<lazy.25.117373710>}
-5> flush().                    
+5> flush().
 Shell got 2
 ok
-6> {_, Gen3} = lazy:next(Gen2).                                 
+6> {_, Gen3} = lazy:next(Gen2).
 {3, #Fun<lazy.25.117373710>}
-7> flush().                    
+7> flush().
 Shell got 3
 ok
-8> lazy:next(Gen3).                                             
+8> lazy:next(Gen3).
 empty
-9> flush().                    
+9> flush().
 ok
 ```
 
@@ -414,7 +442,30 @@ produces the intermediate steps.
 {[2,1], #Fun<lazy.23.119312783>}
 4> {_, Gen3} = lazy:next(Gen2).
 {[3,2,1], #Fun<lazy.23.119312783>}
-5> lazy:next(Gen3).            
+5> lazy:next(Gen3).
+empty
+```
+
+#### `unfold`
+
+`unfold` takes a function and an initial accumulator as arguments and returns a generator
+that produces values by calling the given function with the given accumulator. The given
+function must return either the atom `empty` to indicate the end of the sequence, or a
+2-tuple consisting of the value to produce and a new accumulator which is fed back into
+the function with with the subsequent call.
+
+```erlang
+1> Gen0 = lazy:unfold(fun (0) -> empty; (V) -> {V, V div 2} end, 8). 
+#Fun<lazy.11.73700886>
+2> {_, Gen1} = lazy:next(Gen0).                                                 
+{8, #Fun<lazy.12.73700886>}
+3> {_, Gen2} = lazy:next(Gen1).                                                 
+{4, #Fun<lazy.12.73700886>}
+4> {_, Gen3} = lazy:next(Gen2).                                                 
+{2, #Fun<lazy.12.73700886>}
+5> {_, Gen4} = lazy:next(Gen3).                                                 
+{1, #Fun<lazy.12.73700886>}
+6> lazy:next(Gen4).                                                             
 empty
 ```
 
@@ -483,7 +534,7 @@ produces.
 `foldr` folds the sequence from the right (last value to first value).
 
 ```erlang
-1> lazy:foldl(fun (V, Acc) -> [V | Acc] end, [], lazy:seq(1, 10)).    
+1> lazy:foldl(fun (V, Acc) -> [V | Acc] end, [], lazy:seq(1, 10)).
 [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
 
 2> lazy:foldr(fun (V, Acc) -> [V | Acc] end, [], lazy:seq(1, 10)).
