@@ -55,10 +55,12 @@
 
 -define(is_generator(G), is_function(G, 0)).
 
+%% @doc Materializes and returns the next value of a generator.
 -spec next(generator(V)) -> 'empty' | {V, generator(V)} when V :: term().
 next(Generator) when ?is_generator(Generator) ->
 	Generator().
 
+%% @doc Turns a list into a generator.
 -spec from_list([V]) -> generator(V) when V :: term().
 from_list([]) ->
 	fun () -> empty end;
@@ -70,6 +72,7 @@ from_list1([V|Vs]) ->
 from_list1([]) ->
 	empty.
 
+%% @doc Materializes a generator into a list.
 -spec to_list(generator(V)) -> [V] when V :: term().
 to_list(Generator) when ?is_generator(Generator) ->
 	to_list1(next(Generator)).
@@ -79,6 +82,7 @@ to_list1(empty) ->
 to_list1({V, G1}) ->
 	[V|to_list1(next(G1))].
 
+%% @doc Flushes a generator. Useful to trigger side effects.
 -spec flush(generator(_)) -> ok.
 flush(Generator) when ?is_generator(Generator) ->
 	flush1(next(Generator)).
@@ -88,6 +92,7 @@ flush1(empty) ->
 flush1({_, G1}) ->
 	flush1(next(G1)).
 
+%% @doc Checks if all values produced by a generator satisfy a predicate.
 -spec all(fun((V) -> boolean()), generator(V)) -> boolean() when V :: term().
 all(Fun, Generator) when is_function(Fun, 1), ?is_generator(Generator) ->
 	all1(Fun, next(Generator)).
@@ -102,6 +107,7 @@ all1(F, {V, G1}) ->
 			false
 	end.
 
+%% @doc Checks if any of the values produced by a generator satisfies a predicate.
 -spec any(fun((V) -> boolean()), generator(V)) -> boolean() when V :: term().
 any(Fun, Generator) when is_function(Fun, 1), ?is_generator(Generator) ->
 	any1(Fun, next(Generator)).
@@ -116,7 +122,8 @@ any1(F, {V, G1}) ->
 			any1(F, next(G1))
 	end.
 
--spec length(generator(term())) -> non_neg_integer().
+%% @doc Returns the number of values a generator produces.
+-spec length(generator(_)) -> non_neg_integer().
 length(Generator) when ?is_generator(Generator) ->
 	length1(next(Generator), 0).
 
@@ -125,22 +132,28 @@ length1(empty, N) ->
 length1({_, G1}, N) ->
 	length1(next(G1), N+1).
 
+%% @doc Creates a generator that produces an empty sequence.
 -spec empty() -> fun(() -> 'empty').
 empty() ->
 	fun () -> empty end.
 
+%% @doc Creates a generator that produces the given value exactly once.
 -spec once(V) -> generator(V) when V :: term().
 once(Value) ->
 	fun () -> {Value, fun () -> empty end} end.
 
+%% @doc Creates a generator that produces repetitions of the given value.
 -spec repeat(V) -> generator(V) when V :: term().
 repeat(Value) ->
 	fun G() -> {Value, G} end.
 
+%% @doc Creates a generator that produces values by repeated calls of the given function.
 -spec repeatedly(fun(() -> V)) -> generator(V) when V :: term().
 repeatedly(Fun) when is_function(Fun, 0) ->
 	fun G() -> {Fun(), G} end.
 
+%% @doc Creates a generator that produces values by iterative calls of the given
+%%      function, feeding its own output back in with the next call.
 -spec iterate(fun((V0 | V1) -> V1), V0) -> generator(V1) when V0 :: term(), V1 :: term().
 iterate(Fun, Init) when is_function(Fun, 1) ->
 	fun () -> iterate1(Fun, Init) end.
@@ -148,6 +161,7 @@ iterate(Fun, Init) when is_function(Fun, 1) ->
 iterate1(F, V) ->
 	{V, fun () -> iterate1(F, F(V)) end}.
 
+%% @doc Creates a generator that cycles a generator.
 -spec cycle(generator(V)) -> generator(V) when V :: term().
 cycle(Generator) when ?is_generator(Generator) ->
 	fun () -> cycle1(true, next(Generator), Generator) end.
@@ -159,6 +173,11 @@ cycle1(false, empty, G) ->
 cycle1(_, {V, G1}, G) ->
 	{V, fun () -> cycle1(false, next(G1), G) end}.
 
+%% @doc Creates a generator similar to `iterate/2'.
+%%
+%%      The given function must return a 2-tuple consisiting of the value
+%%      to return and an accumulator which will be fed back into the function
+%%      with the next call.
 -spec unfold(fun((Acc0 | Acc1) -> empty | {V, Acc1}), Acc0) -> generator(V) when V :: term(), Acc0 :: term(), Acc1 :: term().
 unfold(Fun, Acc0) when is_function(Fun, 1) ->
 	fun () -> unfold1(Fun, Fun(Acc0)) end.
@@ -168,6 +187,8 @@ unfold1(_, empty) ->
 unfold1(F, {V, Acc1}) ->
 	{V, fun () -> unfold1(F, F(Acc1)) end}.
 
+%% @doc Creates a generator that produces the given number of values taken
+%%      from the given generator.
 -spec take(non_neg_integer(), generator(V)) -> generator(V) when V :: term().
 take(0, Generator) when ?is_generator(Generator) ->
 	empty();
@@ -181,6 +202,8 @@ take1(1, {V, _}) ->
 take1(N, {V, G1}) ->
 	{V, fun () -> take1(N-1, next(G1)) end}.
 
+%% @doc Creates a generator that produces the values taken from the given generator
+%%      as long as the predicate holds.
 -spec takewhile(fun((V) -> boolean()), generator(V)) -> generator(V) when V :: term().
 takewhile(Fun, Generator) when is_function(Fun, 1), ?is_generator(Generator) ->
 	fun () -> takewhile1(Fun, next(Generator)) end.
@@ -195,6 +218,8 @@ takewhile1(F, {V, G1}) ->
 			empty
 	end.
 
+%% @doc Creates a generator that removes the given number of values from the
+%%      given generator.
 -spec drop(non_neg_integer(), generator(V)) -> generator(V) when V :: term().
 drop(0, Generator) when ?is_generator(Generator) ->
 	Generator;
@@ -208,6 +233,8 @@ drop1(1, {_, G1}) ->
 drop1(N, {_, G1}) ->
 	drop1(N-1, next(G1)).
 
+%% @doc Creates a generator that removes values from the given generator as
+%%      long as the predicate holds.
 -spec dropwhile(fun((V) -> boolean()), generator(V)) -> generator(V) when V :: term().
 dropwhile(Fun, Generator) when is_function(Fun, 1), ?is_generator(Generator) ->
 	fun () -> dropwhile1(Fun, next(Generator)) end.
@@ -222,6 +249,8 @@ dropwhile1(F, G={V, G1}) ->
 			G
 	end.
 
+%% @doc Creates a generator that produces values taken from the given generator and mapped
+%%      by the given function.
 -spec map(fun((V0) -> V1), generator(V0)) -> generator(V1) when V0 :: term(), V1 :: term().
 map(Fun, Generator) when is_function(Fun, 1), ?is_generator(Generator) ->
 	fun () -> map1(Fun, next(Generator)) end.
@@ -231,6 +260,8 @@ map1(_, empty) ->
 map1(F, {V, G1}) ->
 	{F(V), fun () -> map1(F, next(G1)) end}.
 
+%% @doc Creates a generator that produces the values taken from the given generator which
+%%      satisfy the given predicate.
 -spec filter(fun((V) -> boolean()), generator(V)) -> generator(V) when V :: term().
 filter(Fun, Generator) when is_function(Fun, 1), ?is_generator(Generator) ->
 	fun () -> filter1(Fun, next(Generator)) end.
@@ -245,6 +276,7 @@ filter1(F, {V, G1}) ->
 			filter1(F, next(G1))
 	end.
 
+%% @doc Creates a generator that combines `filter' and `map' into one.
 -spec filtermap(fun((V0) -> boolean() | {true, V1}), generator(V0)) -> generator(V0 | V1) when V0 :: term(), V1 :: term().
 filtermap(Fun, Generator) when is_function(Fun, 1), ?is_generator(Generator) ->
 	fun () -> filtermap1(Fun, next(Generator)) end.
@@ -261,6 +293,7 @@ filtermap1(F, {V, G1}) ->
 			filtermap1(F, next(G1))
 	end.
 
+%% @doc Folds over the sequence the given generator produces from the left.
 -spec foldl(fun((V, term()) -> term()), term(), generator(V)) -> term() when V :: term().
 foldl(Fun, Acc0, Generator) when is_function(Fun, 2), ?is_generator(Generator) ->
 	foldl1(Fun, Acc0, next(Generator)).
@@ -270,6 +303,7 @@ foldl1(_, Acc, empty) ->
 foldl1(F, Acc, {V, G1}) ->
 	foldl1(F, F(V, Acc), next(G1)).
 
+%% @doc Folds over the sequence the given generator produces from the right.
 -spec foldr(fun((V, term()) -> term()), term(), generator(V)) -> term() when V :: term().
 foldr(Fun, Acc0, Generator) when is_function(Fun, 2), ?is_generator(Generator) ->
 	foldr1(Fun, Acc0, next(Generator)).
@@ -279,6 +313,8 @@ foldr1(_, Acc, empty) ->
 foldr1(F, Acc, {V, G1}) ->
 	F(V, foldr1(F, Acc, next(G1))).
 
+%% @doc Creates a generator that works similar to `foldl' but produces the intermediate
+%%      accumulator value with each step.
 -spec scan(fun((V1, term()) -> V2), term(), generator(V1)) -> generator(V2) when V1 :: term(), V2 :: term().
 scan(Fun, Acc0, Generator) when is_function(Fun, 2), ?is_generator(Generator) ->
 	fun () -> scan1(Fun, Acc0, next(Generator)) end.
@@ -289,10 +325,12 @@ scan1(F, AccIn, {V, G1}) ->
 	AccOut=F(V, AccIn),
 	{AccOut, fun () -> scan1(F, AccOut, next(G1)) end}.
 
+%% @doc Creates a generator that is the concatenation of the two given generators.
 -spec append(generator(V1), generator(V2)) -> generator(V1 | V2) when V1 :: term(), V2 :: term().
 append(Generator1, Generator2) ->
 	append([Generator1, Generator2]).
 
+%% @doc Creates a generator that is the concatenation of all of the given generators.
 -spec append([generator(V)]) -> generator(V) when V :: term().
 append([]) ->
 	empty();
@@ -312,6 +350,10 @@ append1([G0|Gs]) ->
 append1([]) ->
 	empty.
 
+%% @doc Creates a generator that applies the given function to the values
+%%      produced by the given generator. The functions return value is ignored
+%%      and the generator will re-produce the value taken from the given
+%%      generator unchanged.
 apply(Fun, Generator) when is_function(Fun, 1), ?is_generator(Generator) ->
 	fun () -> apply1(Fun, next(Generator)) end.
 
@@ -321,6 +363,8 @@ apply1(F, {V, G1}) ->
 	_=F(V),
 	{V, fun () -> apply1(F, next(G1)) end}.
 
+%% @doc Creates a generator that produces the values taken from the given generators
+%%      wrapped together in a tuple.
 -spec zip(generator(V1), generator(V2)) -> generator({V1, V2}) when V1 :: term(), V2 :: term().
 zip(Generator1, Generator2) when ?is_generator(Generator1), ?is_generator(Generator2) ->
 	fun () -> zip1(next(Generator1), next(Generator2)) end.
@@ -332,6 +376,8 @@ zip1(_, empty) ->
 zip1({V1, G1}, {V2, G2}) ->
 	{{V1, V2}, fun () -> zip1(next(G1), next(G2)) end}.
 
+%% @doc Creates two generators from a generator which produces 2-tuples, one for the first value
+%%      in each tuple, one for the second.
 -spec unzip(generator({V1, V2})) -> {generator(V1), generator(V2)} when V1 :: term(), V2 :: term().
 unzip(Generator) when ?is_generator(Generator) ->
 	{fun () -> unzip1(left, next(Generator)) end, fun () -> unzip1(right, next(Generator)) end}.
@@ -343,10 +389,14 @@ unzip1(left, {{V1, _}, G1}) ->
 unzip1(right, {{_, V2}, G1}) ->
 	{V2, fun () -> unzip1(right, next(G1)) end}.
 
+%% @doc Creates a generator that combines the values produced by the two given generators by passing them
+%%      to the given functions.
 -spec zipwith(fun((V1, V2) -> V3), generator(V1), generator(V2)) -> generator(V3) when V1 :: term(), V2 :: term(), V3 :: term().
 zipwith(Fun, Generator1, Generator2) ->
 	zipwith(Fun, [Generator1, Generator2]).
 
+%% @doc Creates a generator that combines the values produced by all of the given generators by passing them
+%%      to the given function. The arity of the given function must match the number of given generators.
 -spec zipwith(fun((...) -> V1), [generator(V0)]) -> generator(V1) when V0 :: term(), V1 :: term().
 zipwith(_, []) ->
 	empty();
@@ -365,6 +415,8 @@ zipwith1(F, [G|Gs], Acc) ->
 			zipwith1(F, Gs, [Res|Acc])
 	end.
 
+%% @doc Creates a generator that produces the values from the given generator in
+%%      reverse order.
 -spec reverse(generator(V)) -> generator(V) when V :: term().
 reverse(Generator) when ?is_generator(Generator) ->
 	from_list(reverse1(next(Generator), [])).
@@ -374,10 +426,16 @@ reverse1(empty, Acc) ->
 reverse1({V, G1}, Acc) ->
 	reverse1(next(G1), [V|Acc]).
 
+%% @doc Creates a generator that produces a sequence of integers, starting
+%%      with the given start value up to the given end value or `infinity',
+%%      in increments of 1.
 -spec seq(integer(), integer()) -> generator(integer()).
 seq(N1, N2) ->
 	seq(N1, N2, 1).
 
+%% @doc Creates a generator that produces a sequence of integers, starting
+%%      with the given start value up to the given end value or `infinity',
+%%      in increments of the given step value.
 -spec seq(integer(), integer() | 'infinity', integer()) -> generator(integer()).
 seq(N1, infinity, 0) when is_integer(N1) ->
 	repeat(N1);
