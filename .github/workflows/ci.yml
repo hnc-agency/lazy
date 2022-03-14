@@ -24,3 +24,5 @@ jobs:
       run: make proper
     - name: Dialyzer
       run: make dialyze
+    - name: Docs
+      run: make edoc
