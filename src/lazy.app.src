@@ -5,6 +5,9 @@
 		{description, "Lazy sequences"},
 		{vsn, "0.0.1"},
 		{modules, ['lazy']},
-		{applications, [kernel, stdlib]}
+		{applications, [kernel, stdlib]},
+		{licenses, [<<"ISC">>]},
+		{build_tools, [<<"make">>, <<"rebar3">>]},
+		{links, #{<<"GitHub">> => <<"https://github.com/hnc-agency/lazy">>}}
 	]
 }.
